@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>線画3Dダンジョン（奥から手前レイヤー描画）</title>
+<title>線画3Dダンジョン（奥→手前レイヤー＋壁塗りつぶし）</title>
 <style>
 body { background:#000; color:#fff; text-align:center; }
 #view { background:#000; margin:20px auto; border:2px solid #555; }
@@ -12,7 +12,7 @@ button { margin:5px; }
 </head>
 <body>
 
-<h1>線画3Dダンジョン（奥から手前レイヤー描画）</h1>
+<h1>線画3Dダンジョン（奥→手前レイヤー描画）</h1>
 
 <canvas id="view" width="800" height="600"></canvas>
 
@@ -74,6 +74,7 @@ function getView20(){
     for(let d=0; d<=7; d++){
         const row=[];
         const range = (d<=1 ? [-1,0,1] : [-2,-1,0,1,2]);
+
         for(let sx of range){
             const pos = rotate(sx, -d, dir);
             const tx = px + pos.x;
@@ -102,64 +103,80 @@ const BOX = [
     {l: 370, r:430, t:315, b:285},  // depth7
 ];
 
+//==================================================
+// 壁描画（正面＋側面を完全塗りつぶし）
+//==================================================
 function drawWall(depth, left, front, right) {
     const b = BOX[depth-1];
+    const next = BOX[depth] || b;
 
-    // 奥ほど暗いグレーにする
-    const shade = 200 - depth * 20; 
+    // 奥ほど暗いグレー
+    const shade = 180 - depth * 15;
     const fillColor = `rgb(${shade},${shade},${shade})`;
 
-    // --- 塗りつぶし（奥を隠す） ---
+    // -------------------------
+    // 正面壁（塗りつぶし → 枠線）
+    // -------------------------
     if (front) {
         vctx.fillStyle = fillColor;
         vctx.fillRect(b.l, b.t, b.r - b.l, b.b - b.t);
-    }
 
-    // --- 枠線（線画） ---
-    const alpha = 1.0 - (depth * 0.08);
-    vctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-    vctx.lineWidth = depth <= 3 ? 3 : 1.5;
-
-    // 正面壁の枠
-    if (front) {
+        vctx.strokeStyle = "white";
+        vctx.lineWidth = depth <= 3 ? 3 : 1.5;
         vctx.strokeRect(b.l, b.t, b.r - b.l, b.b - b.t);
     }
 
-    // 左壁
+    // -------------------------
+    // 左側の壁（奥→手前の四角形）
+    // -------------------------
     if (left) {
         vctx.fillStyle = fillColor;
-        vctx.fillRect(b.l - 2, b.t, 4, b.b - b.t); // 左壁の塗りつぶし
-
         vctx.beginPath();
         vctx.moveTo(b.l, b.t);
+        vctx.lineTo(next.l, next.t);
+        vctx.lineTo(next.l, next.b);
         vctx.lineTo(b.l, b.b);
+        vctx.closePath();
+        vctx.fill();
+
+        vctx.strokeStyle = "white";
+        vctx.lineWidth = depth <= 3 ? 3 : 1.5;
         vctx.stroke();
     }
 
-    // 右壁
+    // -------------------------
+    // 右側の壁（奥→手前の四角形）
+    // -------------------------
     if (right) {
         vctx.fillStyle = fillColor;
-        vctx.fillRect(b.r - 2, b.t, 4, b.b - b.t); // 右壁の塗りつぶし
-
         vctx.beginPath();
         vctx.moveTo(b.r, b.t);
+        vctx.lineTo(next.r, next.t);
+        vctx.lineTo(next.r, next.b);
         vctx.lineTo(b.r, b.b);
+        vctx.closePath();
+        vctx.fill();
+
+        vctx.strokeStyle = "white";
+        vctx.lineWidth = depth <= 3 ? 3 : 1.5;
         vctx.stroke();
     }
 }
 
-
+//==================================================
+// レンダリング（奥→手前）
+//==================================================
 function render3D(){
     vctx.clearRect(0,0,800,600);
     const v = getView20();
 
-    // 🔁 奥から手前へ描画
     for(let d=7; d>=1; d--){
-        const row=v[d];
-        const left  = row[0]===1;
-        const front = row[Math.floor(row.length/2)]===1;
-        const right = row[row.length-1]===1;
-        drawWall(d,left,front,right);
+        const row = v[d];
+        const left  = row[0] === 1;
+        const front = row[Math.floor(row.length/2)] === 1;
+        const right = row[row.length-1] === 1;
+
+        drawWall(d, left, front, right);
     }
 }
 
