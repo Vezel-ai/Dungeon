@@ -110,10 +110,11 @@ function renderView() {
     }
 }
 
-// ミニマップ描画
+// ミニマップ（三角形プレイヤー）
 function renderMinimap() {
     ctx.clearRect(0, 0, 200, 200);
 
+    // マップ描画
     for (let y = 0; y < 10; y++) {
         for (let x = 0; x < 10; x++) {
             ctx.fillStyle = map[y][x] === 1 ? "#444" : "#222";
@@ -121,8 +122,34 @@ function renderMinimap() {
         }
     }
 
+    // プレイヤー（三角形）
+    const cx = px * 20 + 10;
+    const cy = py * 20 + 10;
+    const size = 10;
+
     ctx.fillStyle = "red";
-    ctx.fillRect(px * 20, py * 20, 20, 20);
+    ctx.beginPath();
+
+    if (dir === 0) {
+        ctx.moveTo(cx, cy - size);
+        ctx.lineTo(cx - size, cy + size);
+        ctx.lineTo(cx + size, cy + size);
+    } else if (dir === 1) {
+        ctx.moveTo(cx + size, cy);
+        ctx.lineTo(cx - size, cy - size);
+        ctx.lineTo(cx - size, cy + size);
+    } else if (dir === 2) {
+        ctx.moveTo(cx, cy + size);
+        ctx.lineTo(cx - size, cy - size);
+        ctx.lineTo(cx + size, cy - size);
+    } else if (dir === 3) {
+        ctx.moveTo(cx - size, cy);
+        ctx.lineTo(cx + size, cy - size);
+        ctx.lineTo(cx + size, cy + size);
+    }
+
+    ctx.closePath();
+    ctx.fill();
 }
 
 // 移動
