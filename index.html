@@ -22,30 +22,86 @@ body {
 }
 .seg {
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     background-size: cover;
     background-position: center;
 }
 
-/* ★ 奥行き強化版 ★ */
-.depth1 { /* 1マス先（手前） */
+/* 正面の奥行き強化 */
+.front.depth1 {
     width: 480px;
     height: 320px;
     top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
     filter: brightness(1.0);
 }
-.depth2 { /* 2マス先 */
+.front.depth2 {
     width: 300px;
     height: 200px;
     top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
     filter: brightness(0.8);
 }
-.depth3 { /* 3マス先（奥） */
+.front.depth3 {
     width: 180px;
     height: 140px;
     top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
     filter: brightness(0.6);
+}
+
+/* 側面通路（右側） */
+.sideR.depth1 {
+    width: 200px;
+    height: 260px;
+    top: 60px;
+    left: 75%;
+    transform: translateX(-50%);
+    filter: brightness(0.9);
+}
+.sideR.depth2 {
+    width: 140px;
+    height: 180px;
+    top: 80px;
+    left: 75%;
+    transform: translateX(-50%);
+    filter: brightness(0.7);
+}
+.sideR.depth3 {
+    width: 100px;
+    height: 130px;
+    top: 100px;
+    left: 75%;
+    transform: translateX(-50%);
+    filter: brightness(0.5);
+}
+
+/* 側面通路（左側） */
+.sideL.depth1 {
+    width: 200px;
+    height: 260px;
+    top: 60px;
+    left: 25%;
+    transform: translateX(-50%);
+    filter: brightness(0.9);
+}
+.sideL.depth2 {
+    width: 140px;
+    height: 180px;
+    top: 80px;
+    left: 25%;
+    transform: translateX(-50%);
+    filter: brightness(0.7);
+}
+.sideL.depth3 {
+    width: 100px;
+    height: 130px;
+    top: 100px;
+    left: 25%;
+    transform: translateX(-50%);
+    filter: brightness(0.5);
 }
 
 #controls { margin: 10px; }
@@ -110,24 +166,52 @@ function renderView() {
     view.innerHTML = "";
 
     for (let d = 1; d <= 3; d++) {
-        const nx = px + dx[dir] * d;
-        const ny = py + dy[dir] * d;
+        const fx = px + dx[dir] * d;
+        const fy = py + dy[dir] * d;
 
-        const seg = document.createElement("div");
-        seg.classList.add("seg", "depth" + d);
+        // 正面
+        const frontSeg = document.createElement("div");
+        frontSeg.classList.add("seg", "front", "depth" + d);
 
-        if (map[ny][nx] === 1) {
-            seg.style.backgroundImage = `url(${IMG_WALL})`;
-            view.appendChild(seg);
+        if (map[fy][fx] === 1) {
+            frontSeg.style.backgroundImage = `url(${IMG_WALL})`;
+            view.appendChild(frontSeg);
+            // 壁に当たったら奥は見えないので break
             break;
         } else {
-            seg.style.backgroundImage = `url(${IMG_CORRIDOR})`;
-            view.appendChild(seg);
+            frontSeg.style.backgroundImage = `url(${IMG_CORRIDOR})`;
+            view.appendChild(frontSeg);
+        }
+
+        // 側面（右・左）の判定
+        const rightDir = (dir + 1) % 4;
+        const leftDir  = (dir + 3) % 4;
+
+        // 「dマス先の位置」の左右
+        const rx = fx + dx[rightDir];
+        const ry = fy + dy[rightDir];
+        const lx = fx + dx[leftDir];
+        const ly = fy + dy[leftDir];
+
+        // 右側が通路なら右側通路を描画
+        if (map[ry] && map[ry][rx] === 0) {
+            const sideR = document.createElement("div");
+            sideR.classList.add("seg", "sideR", "depth" + d);
+            sideR.style.backgroundImage = `url(${IMG_CORRIDOR})`;
+            view.appendChild(sideR);
+        }
+
+        // 左側が通路なら左側通路を描画
+        if (map[ly] && map[ly][lx] === 0) {
+            const sideL = document.createElement("div");
+            sideL.classList.add("seg", "sideL", "depth" + d);
+            sideL.style.backgroundImage = `url(${IMG_CORRIDOR})`;
+            view.appendChild(sideL);
         }
     }
 }
 
-// ★ ミニマップ（三角形プレイヤー）
+// ミニマップ（三角形プレイヤー）
 function renderMinimap() {
     ctx.clearRect(0, 0, 200, 200);
 
