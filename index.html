@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>線画3Dダンジョン（ウィザードリィ風）</title>
+<title>線画3Dダンジョン（太線＋影付き）</title>
 
 <style>
 body {
@@ -27,7 +27,7 @@ button { margin: 5px; }
 </head>
 
 <body>
-<h1>線画3Dダンジョン（ウィザードリィ風）</h1>
+<h1>線画3Dダンジョン（太線＋影付き）</h1>
 
 <canvas id="view" width="480" height="360"></canvas>
 
@@ -70,13 +70,18 @@ const vctx = view.getContext("2d");
 const minimap = document.getElementById("minimap");
 const mctx = minimap.getContext("2d");
 
+// depthごとの線画座標（ウィザードリィ方式）
+const DEPTH = {
+    1: { top: 40, bottom: 320, left: 60, right: 420 },
+    2: { top: 90, bottom: 270, left: 140, right: 340 },
+    3: { top: 130, bottom: 230, left: 190, right: 290 }
+};
+
 // 線画3D描画
 function renderView() {
     vctx.clearRect(0, 0, 480, 360);
-    vctx.strokeStyle = "#fff";
-    vctx.lineWidth = 2;
+    vctx.lineWidth = 4;
 
-    // depthごとに線画を描く
     for (let d = 1; d <= 3; d++) {
         const fx = px + dx[dir] * d;
         const fy = py + dy[dir] * d;
@@ -89,6 +94,123 @@ function renderView() {
         const rx = fx + dx[rightDir];
         const ry = fy + dy[rightDir];
 
-        // depthごとの線の位置
-        const W = 480, H = 360;
-        const scale = [0, 1.0
+        const box = DEPTH[d];
+
+        // 奥ほど暗くする
+        const brightness = [0, 1.0, 0.7, 0.45][d];
+        vctx.strokeStyle = `rgba(255,255,255,${brightness})`;
+
+        // 正面が壁
+        if (map[fy][fx] === 1) {
+            vctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
+            break;
+        }
+
+        // 正面が通路 → 奥の枠
+        vctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
+
+        // 左側が通路 → 左の壁が開く
+        if (map[ly][lx] === 0) {
+            vctx.beginPath();
+            vctx.moveTo(box.left, box.top);
+            vctx.lineTo(0, 0);
+            vctx.moveTo(box.left, box.bottom);
+            vctx.lineTo(0, 360);
+            vctx.stroke();
+        }
+
+        // 右側が通路 → 右の壁が開く
+        if (map[ry][rx] === 0) {
+            vctx.beginPath();
+            vctx.moveTo(box.right, box.top);
+            vctx.lineTo(480, 0);
+            vctx.moveTo(box.right, box.bottom);
+            vctx.lineTo(480, 360);
+            vctx.stroke();
+        }
+    }
+}
+
+// ミニマップ（三角形プレイヤー）
+function renderMinimap() {
+    mctx.clearRect(0, 0, 200, 200);
+
+    for (let y = 0; y < 10; y++) {
+        for (let x = 0; x < 10; x++) {
+            mctx.fillStyle = map[y][x] === 1 ? "#444" : "#222";
+            mctx.fillRect(x * 20, y * 20, 20, 20);
+        }
+    }
+
+    const cx = px * 20 + 10;
+    const cy = py * 20 + 10;
+    const size = 10;
+
+    mctx.lineWidth = 3;
+    mctx.strokeStyle = "white";
+    mctx.fillStyle = "red";
+
+    mctx.beginPath();
+    if (dir === 0) {
+        mctx.moveTo(cx, cy - size);
+        mctx.lineTo(cx - size, cy + size);
+        mctx.lineTo(cx + size, cy + size);
+    } else if (dir === 1) {
+        mctx.moveTo(cx + size, cy);
+        mctx.lineTo(cx - size, cy - size);
+        mctx.lineTo(cx - size, cy + size);
+    } else if (dir === 2) {
+        mctx.moveTo(cx, cy + size);
+        mctx.lineTo(cx - size, cy - size);
+        mctx.lineTo(cx + size, cy - size);
+    } else if (dir === 3) {
+        mctx.moveTo(cx - size, cy);
+        mctx.lineTo(cx + size, cy - size);
+        mctx.lineTo(cx + size, cy + size);
+    }
+    mctx.closePath();
+    mctx.fill();
+    mctx.stroke();
+}
+
+// 移動
+function moveForward() {
+    const nx = px + dx[dir];
+    const ny = py + dy[dir];
+    if (map[ny][nx] === 0) { px = nx; py = ny; }
+    update();
+}
+function moveBackward() {
+    const nx = px - dx[dir];
+    const ny = py - dy[dir];
+    if (map[ny][nx] === 0) { px = nx; py = ny; }
+    update();
+}
+function turnLeft()  { dir = (dir + 3) % 4; update(); }
+function turnRight() { dir = (dir + 1) % 4; update(); }
+
+// 更新
+function update() {
+    renderView();
+    renderMinimap();
+}
+
+// ボタン
+document.getElementById("forward").onclick = moveForward;
+document.getElementById("backward").onclick = moveBackward;
+document.getElementById("left").onclick = turnLeft;
+document.getElementById("right").onclick = turnRight;
+
+// キー操作
+document.onkeydown = e => {
+    if (e.key === "w") moveForward();
+    if (e.key === "s") moveBackward();
+    if (e.key === "a") turnLeft();
+    if (e.key === "d") turnRight();
+};
+
+update();
+</script>
+
+</body>
+</html>
