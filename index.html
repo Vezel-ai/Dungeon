@@ -1,96 +1,168 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>疑似3Dダンジョン（10x10・視界3マス）</title>
-    <style>
-        body {
-            background: #000;
-            color: #fff;
-            text-align: center;
-            font-family: sans-serif;
-        }
-        #view {
-            position: relative;
-            width: 480px;
-            height: 360px;
-            margin: 20px auto;
-            border: 2px solid #555;
-            background-color: #111;
-            background-size: cover;
-            background-position: center;
-            overflow: hidden;
-        }
-        .seg {
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-            background-size: cover;
-            background-position: center;
-        }
-        /* 奥に行くほど小さく・上に */
-        .depth1 { /* 1マス先（手前） */
-            width: 420px;
-            height: 280px;
-            top: 60px;
-        }
-        .depth2 { /* 2マス先 */
-            width: 320px;
-            height: 220px;
-            top: 80px;
-        }
-        .depth3 { /* 3マス先（奥） */
-            width: 220px;
-            height: 180px;
-            top: 100px;
-        }
+<meta charset="UTF-8">
+<title>疑似3Dダンジョン（10x10・視界3マス）</title>
 
-        #controls {
-            margin: 10px;
-        }
-        button {
-            margin: 5px;
-        }
-        #minimap {
-            border: 1px solid #555;
-            background: #111;
-        }
-        p.hint {
-            font-size: 12px;
-            color: #aaa;
-        }
-    </style>
+<style>
+body {
+    background: #000;
+    color: #fff;
+    text-align: center;
+    font-family: sans-serif;
+}
+#view {
+    position: relative;
+    width: 480px;
+    height: 360px;
+    margin: 20px auto;
+    border: 2px solid #555;
+    background-color: #111;
+    overflow: hidden;
+}
+.seg {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    background-size: cover;
+    background-position: center;
+}
+.depth1 { width: 420px; height: 280px; top: 60px; }
+.depth2 { width: 320px; height: 220px; top: 80px; }
+.depth3 { width: 220px; height: 180px; top: 100px; }
+
+#controls { margin: 10px; }
+button { margin: 5px; }
+
+#minimap {
+    border: 1px solid #555;
+    background: #111;
+}
+</style>
 </head>
+
 <body>
-    <h1>疑似3Dダンジョン（10×10・視界3マス）</h1>
-    <div id="view"></div>
-<img src="wall.png" width="200">
-<img src="floor.png" width="200">
-<img src="corridor.png" width="200">
+<h1>疑似3Dダンジョン（10×10・視界3マス）</h1>
 
-    <div id="controls">
-        <button id="left">← 左を向く</button>
-        <button id="forward">↑ 前進</button>
-        <button id="right">右を向く →</button>
-        <button id="backward">↓ 後退</button>
-    </div>
+<div id="view"></div>
 
-    <canvas id="minimap" width="200" height="200"></canvas>
-    <p class="hint">操作：W=前進 / S=後退 / A=左回転 / D=右回転</p>
+<div id="controls">
+    <button id="left">← 左を向く</button>
+    <button id="forward">↑ 前進</button>
+    <button id="right">右を向く →</button>
+    <button id="backward">↓ 後退</button>
+</div>
 
-    <script>
-        // ▼ ここで画像ファイル名を設定（同じフォルダに置く）
-        const IMG_WALL     = "wall.png";
-        const IMG_FLOOR    = "floor.png";
-        const IMG_CORRIDOR = "corridor.png";
+<canvas id="minimap" width="200" height="200"></canvas>
+<p class="hint">操作：W=前進 / S=後退 / A=左回転 / D=右回転</p>
 
-        // 10×10マップ（0=通路, 1=壁）
-        const map = [
-            [1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,1,0,0,0,1],
-            [1,0,1,1,0,1,0,1,0,1],
-            [1,0,0,1,0,0,0,1,0,1],
-            [1,1,0,1,1,1,0,1,0,1],
-            [1,0,0,0,0,1,0,0,0,1],
-            [1,0,1,1,0,1,1,1,0,1],
-            [1,0,0,1,0,0,0,1,0,1],
+<script>
+// 画像ファイル
+const IMG_WALL     = "wall.png";
+const IMG_FLOOR    = "floor.png";
+const IMG_CORRIDOR = "corridor.png";
+
+// マップ（0=通路, 1=壁）
+const map = [
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,1,0,0,0,1],
+    [1,0,1,1,0,1,0,1,0,1],
+    [1,0,0,1,0,0,0,1,0,1],
+    [1,1,0,1,1,1,0,1,0,1],
+    [1,0,0,0,0,1,0,0,0,1],
+    [1,0,1,1,0,1,1,1,0,1],
+    [1,0,0,1,0,0,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1]
+];
+
+// プレイヤー位置と向き（0=上,1=右,2=下,3=左）
+let px = 1, py = 1;
+let dir = 1;
+
+// 方向ベクトル
+const dx = [0, 1, 0, -1];
+const dy = [-1, 0, 1, 0];
+
+const view = document.getElementById("view");
+const minimap = document.getElementById("minimap");
+const ctx = minimap.getContext("2d");
+
+// 3D描画
+function renderView() {
+    view.innerHTML = "";
+
+    for (let d = 1; d <= 3; d++) {
+        const nx = px + dx[dir] * d;
+        const ny = py + dy[dir] * d;
+
+        const seg = document.createElement("div");
+        seg.classList.add("seg", "depth" + d);
+
+        if (map[ny][nx] === 1) {
+            seg.style.backgroundImage = `url(${IMG_WALL})`;
+            view.appendChild(seg);
+            break;
+        } else {
+            seg.style.backgroundImage = `url(${IMG_CORRIDOR})`;
+            view.appendChild(seg);
+        }
+    }
+}
+
+// ミニマップ描画
+function renderMinimap() {
+    ctx.clearRect(0, 0, 200, 200);
+
+    for (let y = 0; y < 10; y++) {
+        for (let x = 0; x < 10; x++) {
+            ctx.fillStyle = map[y][x] === 1 ? "#444" : "#222";
+            ctx.fillRect(x * 20, y * 20, 20, 20);
+        }
+    }
+
+    ctx.fillStyle = "red";
+    ctx.fillRect(px * 20, py * 20, 20, 20);
+}
+
+// 移動
+function moveForward() {
+    const nx = px + dx[dir];
+    const ny = py + dy[dir];
+    if (map[ny][nx] === 0) { px = nx; py = ny; }
+    update();
+}
+function moveBackward() {
+    const nx = px - dx[dir];
+    const ny = py - dy[dir];
+    if (map[ny][nx] === 0) { px = nx; py = ny; }
+    update();
+}
+function turnLeft()  { dir = (dir + 3) % 4; update(); }
+function turnRight() { dir = (dir + 1) % 4; update(); }
+
+// 更新
+function update() {
+    renderView();
+    renderMinimap();
+}
+
+// ボタン
+document.getElementById("forward").onclick = moveForward;
+document.getElementById("backward").onclick = moveBackward;
+document.getElementById("left").onclick = turnLeft;
+document.getElementById("right").onclick = turnRight;
+
+// キー操作
+document.onkeydown = e => {
+    if (e.key === "w") moveForward();
+    if (e.key === "s") moveBackward();
+    if (e.key === "a") turnLeft();
+    if (e.key === "d") turnRight();
+};
+
+update();
+</script>
+
+</body>
+</html>
