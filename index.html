@@ -104,15 +104,32 @@ const BOX = [
 
 function drawWall(depth, left, front, right) {
     const b = BOX[depth-1];
-    const alpha = 1.0 - (depth * 0.08); // 奥ほど薄く
+
+    // 奥ほど暗いグレーにする
+    const shade = 200 - depth * 20; 
+    const fillColor = `rgb(${shade},${shade},${shade})`;
+
+    // --- 塗りつぶし（奥を隠す） ---
+    if (front) {
+        vctx.fillStyle = fillColor;
+        vctx.fillRect(b.l, b.t, b.r - b.l, b.b - b.t);
+    }
+
+    // --- 枠線（線画） ---
+    const alpha = 1.0 - (depth * 0.08);
     vctx.strokeStyle = `rgba(255,255,255,${alpha})`;
     vctx.lineWidth = depth <= 3 ? 3 : 1.5;
 
-    // 正面壁
-    if (front) vctx.strokeRect(b.l, b.t, b.r - b.l, b.b - b.t);
+    // 正面壁の枠
+    if (front) {
+        vctx.strokeRect(b.l, b.t, b.r - b.l, b.b - b.t);
+    }
 
     // 左壁
     if (left) {
+        vctx.fillStyle = fillColor;
+        vctx.fillRect(b.l - 2, b.t, 4, b.b - b.t); // 左壁の塗りつぶし
+
         vctx.beginPath();
         vctx.moveTo(b.l, b.t);
         vctx.lineTo(b.l, b.b);
@@ -121,12 +138,16 @@ function drawWall(depth, left, front, right) {
 
     // 右壁
     if (right) {
+        vctx.fillStyle = fillColor;
+        vctx.fillRect(b.r - 2, b.t, 4, b.b - b.t); // 右壁の塗りつぶし
+
         vctx.beginPath();
         vctx.moveTo(b.r, b.t);
         vctx.lineTo(b.r, b.b);
         vctx.stroke();
     }
 }
+
 
 function render3D(){
     vctx.clearRect(0,0,800,600);
