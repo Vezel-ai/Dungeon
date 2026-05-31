@@ -2,8 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>線画3Dダンジョン（Wizardry6 DOS風）</title>
-
+<title>線画3Dダンジョン（Wizardry6風・連続壁線版）</title>
 <style>
 body {
     background: #000;
@@ -18,16 +17,14 @@ body {
 }
 #controls { margin: 10px; }
 button { margin: 5px; }
-
 #minimap {
     border: 1px solid #555;
     background: #111;
 }
 </style>
 </head>
-
 <body>
-<h1>線画3Dダンジョン（Wizardry6 DOS風）</h1>
+<h1>線画3Dダンジョン（Wizardry6風・連続壁線）</h1>
 
 <canvas id="view" width="800" height="600"></canvas>
 
@@ -39,10 +36,10 @@ button { margin: 5px; }
 </div>
 
 <canvas id="minimap" width="200" height="200"></canvas>
-<p class="hint">操作：W=前進 / S=振り返り / A=左回転 / D=右回転</p>
+<p>操作：W=前進 / S=振り返り / A=左回転 / D=右回転</p>
 
 <script>
-// マップ（0=通路, 1=壁）
+// 0=通路, 1=壁
 const map = [
     [1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,0,1,0,0,0,1],
@@ -56,11 +53,10 @@ const map = [
     [1,1,1,1,1,1,1,1,1,1]
 ];
 
-// プレイヤー位置と向き（0=上,1=右,2=下,3=左）
+// プレイヤー
 let px = 1, py = 1;
-let dir = 1;
+let dir = 1; // 0=上,1=右,2=下,3=左
 
-// 方向ベクトル
 const dx = [0, 1, 0, -1];
 const dy = [-1, 0, 1, 0];
 
@@ -70,73 +66,145 @@ const vctx = view.getContext("2d");
 const minimap = document.getElementById("minimap");
 const mctx = minimap.getContext("2d");
 
-// depthごとの枠（Wizardry6 DOS風・800×600最適化）
-const DEPTH = {
-    1: { left: 80,  right: 720, top: 80,  bottom: 520 },
-    2: { left: 200, right: 600, top: 150, bottom: 450 },
-    3: { left: 300, right: 500, top: 200, bottom: 400 }
-};
+// depth0〜3 の枠（A方式：上下左右40px内側）
+const BOX = [
+    { left:  40, right: 760, top:  40, bottom: 560 }, // depth0
+    { left:  80, right: 720, top:  80, bottom: 520 }, // depth1
+    { left: 200, right: 600, top: 150, bottom: 450 }, // depth2
+    { left: 300, right: 500, top: 200, bottom: 400 }  // depth3
+];
 
-// 線画3D描画
-function renderView() {
-    vctx.clearRect(0, 0, 800, 600);
-    vctx.lineWidth = 4;
+// マップ安全参照
+function isWall(x, y) {
+    if (y < 0 || y >= map.length) return 1;
+    if (x < 0 || x >= map[0].length) return 1;
+    return map[y][x] === 1 ? 1 : 0;
+}
 
+// depthと左右に対応する「その区間が壁かどうか」判定
+// side: -1=左, +1=右, seg: 0→1,1→2,2→3 の区間インデックス
+function segmentWall(side, seg) {
+    const leftDir  = (dir + 3) % 4;
+    const rightDir = (dir + 1) % 4;
+    const sdir = (side === -1) ? leftDir : rightDir;
+
+    // seg 0: depth0→1（自分の左右）
+    if (seg === 0) {
+        const cx = px + dx[sdir];
+        const cy = py + dy[sdir];
+        return isWall(cx, cy);
+    }
+
+    // seg 1: depth1→2（1歩先の左右）
+    if (seg === 1) {
+        const fx = px + dx[dir];      // 1歩先
+        const fy = py + dy[dir];
+        const sx = fx + dx[sdir];
+        const sy = fy + dy[sdir];
+        return isWall(sx, sy);
+    }
+
+    // seg 2: depth2→3（2歩先の左右）
+    if (seg === 2) {
+        const fx2 = px + dx[dir] * 2; // 2歩先
+        const fy2 = py + dy[dir] * 2;
+        const sx2 = fx2 + dx[sdir];
+        const sy2 = fy2 + dy[sdir];
+        return isWall(sx2, sy2);
+    }
+
+    return 0;
+}
+
+// 正面の壁 depth を返す（1〜3、なければ0）
+function frontWallDepth() {
     for (let d = 1; d <= 3; d++) {
         const fx = px + dx[dir] * d;
         const fy = py + dy[dir] * d;
+        if (isWall(fx, fy)) return d;
+    }
+    return 0;
+}
 
-        const leftDir = (dir + 3) % 4;
-        const rightDir = (dir + 1) % 4;
+// メイン描画
+function renderView() {
+    vctx.clearRect(0, 0, 800, 600);
+    vctx.lineWidth = 3;
 
-        const lx = fx + dx[leftDir];
-        const ly = fy + dy[leftDir];
-        const rx = fx + dx[rightDir];
-        const ry = fy + dy[rightDir];
+    // 連続壁線（左右） depth0→1→2→3
+    const brightness = [1.0, 0.8, 0.6]; // seg0,1,2 用
 
-        const box = DEPTH[d];
+    // 左側
+    for (let seg = 0; seg < 3; seg++) {
+        if (segmentWall(-1, seg)) {
+            const b = brightness[seg];
+            vctx.strokeStyle = `rgba(255,255,255,${b})`;
+            const a = BOX[seg];
+            const b2 = BOX[seg + 1];
 
-        // 奥ほど暗くする
-        const brightness = [0, 1.0, 0.7, 0.45][d];
-        vctx.strokeStyle = `rgba(255,255,255,${brightness})`;
-
-        // 正面が壁
-        if (map[fy][fx] === 1) {
-            vctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
-            break;
-        }
-
-        // 正面が通路 → 奥の枠
-        vctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
-
-        // 左側が壁なら斜め線を描く
-        if (map[ly][lx] === 1) {
-            const prev = DEPTH[d - 1] || { left: 0, top: 0, bottom: 600 };
+            // 左上線
             vctx.beginPath();
-            vctx.moveTo(prev.left, prev.top);
-            vctx.lineTo(box.left, box.top);
-            vctx.moveTo(prev.left, prev.bottom);
-            vctx.lineTo(box.left, box.bottom);
+            vctx.moveTo(a.left, a.top);
+            vctx.lineTo(b2.left, b2.top);
+            vctx.stroke();
+
+            // 左下線
+            vctx.beginPath();
+            vctx.moveTo(a.left, a.bottom);
+            vctx.lineTo(b2.left, b2.bottom);
             vctx.stroke();
         }
+    }
 
-        // 右側が壁なら斜め線を描く
-        if (map[ry][rx] === 1) {
-            const prev = DEPTH[d - 1] || { right: 800, top: 0, bottom: 600 };
+    // 右側
+    for (let seg = 0; seg < 3; seg++) {
+        if (segmentWall(1, seg)) {
+            const b = brightness[seg];
+            vctx.strokeStyle = `rgba(255,255,255,${b})`;
+            const a = BOX[seg];
+            const b2 = BOX[seg + 1];
+
+            // 右上線
             vctx.beginPath();
-            vctx.moveTo(prev.right, prev.top);
-            vctx.lineTo(box.right, box.top);
-            vctx.moveTo(prev.right, prev.bottom);
-            vctx.lineTo(box.right, box.bottom);
+            vctx.moveTo(a.right, a.top);
+            vctx.lineTo(b2.right, b2.top);
             vctx.stroke();
+
+            // 右下線
+            vctx.beginPath();
+            vctx.moveTo(a.right, a.bottom);
+            vctx.lineTo(b2.right, b2.bottom);
+            vctx.stroke();
+        }
+    }
+
+    // 正面の壁枠
+    const fw = frontWallDepth();
+    if (fw > 0) {
+        for (let d = 1; d <= fw; d++) {
+            const box = BOX[d];
+            const alpha = [0, 1.0, 0.7, 0.45][d];
+            vctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+            vctx.strokeRect(box.left, box.top,
+                            box.right - box.left,
+                            box.bottom - box.top);
+        }
+    } else {
+        // 正面が3マスとも通路なら、奥の枠だけ描く
+        for (let d = 1; d <= 3; d++) {
+            const box = BOX[d];
+            const alpha = [0, 1.0, 0.7, 0.45][d];
+            vctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+            vctx.strokeRect(box.left, box.top,
+                            box.right - box.left,
+                            box.bottom - box.top);
         }
     }
 }
 
-// ミニマップ（三角形プレイヤー）
+// ミニマップ
 function renderMinimap() {
     mctx.clearRect(0, 0, 200, 200);
-
     for (let y = 0; y < 10; y++) {
         for (let x = 0; x < 10; x++) {
             mctx.fillStyle = map[y][x] === 1 ? "#444" : "#222";
@@ -175,24 +243,30 @@ function renderMinimap() {
     mctx.stroke();
 }
 
-// 移動
+// 移動・回転
 function moveForward() {
     const nx = px + dx[dir];
     const ny = py + dy[dir];
-    if (map[ny][nx] === 0) { px = nx; py = ny; }
+    if (!isWall(nx, ny)) {
+        px = nx;
+        py = ny;
+    }
     update();
 }
 
-// ★ Sキー＝振り返り（180度回転）
 function turnBack() {
     dir = (dir + 2) % 4;
     update();
 }
+function turnLeft() {
+    dir = (dir + 3) % 4;
+    update();
+}
+function turnRight() {
+    dir = (dir + 1) % 4;
+    update();
+}
 
-function turnLeft()  { dir = (dir + 3) % 4; update(); }
-function turnRight() { dir = (dir + 1) % 4; update(); }
-
-// 更新
 function update() {
     renderView();
     renderMinimap();
@@ -204,16 +278,15 @@ document.getElementById("turnback").onclick = turnBack;
 document.getElementById("left").onclick = turnLeft;
 document.getElementById("right").onclick = turnRight;
 
-// キー操作
-document.onkeydown = e => {
-    if (e.key === "w") moveForward();
-    if (e.key === "s") turnBack();   // ← ここを振り返りに変更
-    if (e.key === "a") turnLeft();
-    if (e.key === "d") turnRight();
-};
+// キー
+document.addEventListener("keydown", e => {
+    if (e.key === "w" || e.key === "W") moveForward();
+    if (e.key === "s" || e.key === "S") turnBack();
+    if (e.key === "a" || e.key === "A") turnLeft();
+    if (e.key === "d" || e.key === "D") turnRight();
+});
 
 update();
 </script>
-
 </body>
 </html>
