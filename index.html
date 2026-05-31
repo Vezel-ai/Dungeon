@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>線画3Dダンジョン（太線＋影付き）</title>
+<title>線画3Dダンジョン（Wizardry6 DOS風）</title>
 
 <style>
 body {
@@ -27,19 +27,19 @@ button { margin: 5px; }
 </head>
 
 <body>
-<h1>線画3Dダンジョン（太線＋影付き）</h1>
+<h1>線画3Dダンジョン（Wizardry6 DOS風）</h1>
 
-<canvas id="view" width="480" height="360"></canvas>
+<canvas id="view" width="800" height="600"></canvas>
 
 <div id="controls">
     <button id="left">← 左を向く</button>
     <button id="forward">↑ 前進</button>
     <button id="right">右を向く →</button>
-    <button id="backward">↓ 後退</button>
+    <button id="turnback">↺ 振り返る</button>
 </div>
 
 <canvas id="minimap" width="200" height="200"></canvas>
-<p class="hint">操作：W=前進 / S=後退 / A=左回転 / D=右回転</p>
+<p class="hint">操作：W=前進 / S=振り返り / A=左回転 / D=右回転</p>
 
 <script>
 // マップ（0=通路, 1=壁）
@@ -70,16 +70,16 @@ const vctx = view.getContext("2d");
 const minimap = document.getElementById("minimap");
 const mctx = minimap.getContext("2d");
 
-// depthごとの線画座標（ウィザードリィ方式）
+// depthごとの枠（Wizardry6 DOS風・800×600最適化）
 const DEPTH = {
-    1: { top: 40, bottom: 320, left: 60, right: 420 },
-    2: { top: 90, bottom: 270, left: 140, right: 340 },
-    3: { top: 130, bottom: 230, left: 190, right: 290 }
+    1: { left: 80,  right: 720, top: 80,  bottom: 520 },
+    2: { left: 200, right: 600, top: 150, bottom: 450 },
+    3: { left: 300, right: 500, top: 200, bottom: 400 }
 };
 
 // 線画3D描画
 function renderView() {
-    vctx.clearRect(0, 0, 480, 360);
+    vctx.clearRect(0, 0, 800, 600);
     vctx.lineWidth = 4;
 
     for (let d = 1; d <= 3; d++) {
@@ -109,23 +109,25 @@ function renderView() {
         // 正面が通路 → 奥の枠
         vctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
 
-        // 左側が通路 → 左の壁が開く
-        if (map[ly][lx] === 0) {
+        // 左側が壁なら斜め線を描く
+        if (map[ly][lx] === 1) {
+            const prev = DEPTH[d - 1] || { left: 0, top: 0, bottom: 600 };
             vctx.beginPath();
-            vctx.moveTo(box.left, box.top);
-            vctx.lineTo(0, 0);
-            vctx.moveTo(box.left, box.bottom);
-            vctx.lineTo(0, 360);
+            vctx.moveTo(prev.left, prev.top);
+            vctx.lineTo(box.left, box.top);
+            vctx.moveTo(prev.left, prev.bottom);
+            vctx.lineTo(box.left, box.bottom);
             vctx.stroke();
         }
 
-        // 右側が通路 → 右の壁が開く
-        if (map[ry][rx] === 0) {
+        // 右側が壁なら斜め線を描く
+        if (map[ry][rx] === 1) {
+            const prev = DEPTH[d - 1] || { right: 800, top: 0, bottom: 600 };
             vctx.beginPath();
-            vctx.moveTo(box.right, box.top);
-            vctx.lineTo(480, 0);
-            vctx.moveTo(box.right, box.bottom);
-            vctx.lineTo(480, 360);
+            vctx.moveTo(prev.right, prev.top);
+            vctx.lineTo(box.right, box.top);
+            vctx.moveTo(prev.right, prev.bottom);
+            vctx.lineTo(box.right, box.bottom);
             vctx.stroke();
         }
     }
@@ -180,12 +182,13 @@ function moveForward() {
     if (map[ny][nx] === 0) { px = nx; py = ny; }
     update();
 }
-function moveBackward() {
-    const nx = px - dx[dir];
-    const ny = py - dy[dir];
-    if (map[ny][nx] === 0) { px = nx; py = ny; }
+
+// ★ Sキー＝振り返り（180度回転）
+function turnBack() {
+    dir = (dir + 2) % 4;
     update();
 }
+
 function turnLeft()  { dir = (dir + 3) % 4; update(); }
 function turnRight() { dir = (dir + 1) % 4; update(); }
 
@@ -197,14 +200,14 @@ function update() {
 
 // ボタン
 document.getElementById("forward").onclick = moveForward;
-document.getElementById("backward").onclick = moveBackward;
+document.getElementById("turnback").onclick = turnBack;
 document.getElementById("left").onclick = turnLeft;
 document.getElementById("right").onclick = turnRight;
 
 // キー操作
 document.onkeydown = e => {
     if (e.key === "w") moveForward();
-    if (e.key === "s") moveBackward();
+    if (e.key === "s") turnBack();   // ← ここを振り返りに変更
     if (e.key === "a") turnLeft();
     if (e.key === "d") turnRight();
 };
