@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>疑似3Dダンジョン（10x10・視界3マス）</title>
+<title>線画3Dダンジョン（ウィザードリィ風）</title>
 
 <style>
 body {
@@ -12,98 +12,10 @@ body {
     font-family: sans-serif;
 }
 #view {
-    position: relative;
-    width: 480px;
-    height: 360px;
+    background: #000;
     margin: 20px auto;
     border: 2px solid #555;
-    background-color: #111;
-    overflow: hidden;
 }
-.seg {
-    position: absolute;
-    background-size: cover;
-    background-position: center;
-}
-
-/* 正面の奥行き強化 */
-.front.depth1 {
-    width: 480px;
-    height: 320px;
-    top: 40px;
-    left: 50%;
-    transform: translateX(-50%);
-    filter: brightness(1.0);
-}
-.front.depth2 {
-    width: 300px;
-    height: 200px;
-    top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    filter: brightness(0.8);
-}
-.front.depth3 {
-    width: 180px;
-    height: 140px;
-    top: 100px;
-    left: 50%;
-    transform: translateX(-50%);
-    filter: brightness(0.6);
-}
-
-/* 側面通路（右側） */
-.sideR.depth1 {
-    width: 200px;
-    height: 260px;
-    top: 60px;
-    left: 75%;
-    transform: translateX(-50%);
-    filter: brightness(0.9);
-}
-.sideR.depth2 {
-    width: 140px;
-    height: 180px;
-    top: 80px;
-    left: 75%;
-    transform: translateX(-50%);
-    filter: brightness(0.7);
-}
-.sideR.depth3 {
-    width: 100px;
-    height: 130px;
-    top: 100px;
-    left: 75%;
-    transform: translateX(-50%);
-    filter: brightness(0.5);
-}
-
-/* 側面通路（左側） */
-.sideL.depth1 {
-    width: 200px;
-    height: 260px;
-    top: 60px;
-    left: 25%;
-    transform: translateX(-50%);
-    filter: brightness(0.9);
-}
-.sideL.depth2 {
-    width: 140px;
-    height: 180px;
-    top: 80px;
-    left: 25%;
-    transform: translateX(-50%);
-    filter: brightness(0.7);
-}
-.sideL.depth3 {
-    width: 100px;
-    height: 130px;
-    top: 100px;
-    left: 25%;
-    transform: translateX(-50%);
-    filter: brightness(0.5);
-}
-
 #controls { margin: 10px; }
 button { margin: 5px; }
 
@@ -115,9 +27,9 @@ button { margin: 5px; }
 </head>
 
 <body>
-<h1>疑似3Dダンジョン（10×10・視界3マス）</h1>
+<h1>線画3Dダンジョン（ウィザードリィ風）</h1>
 
-<div id="view"></div>
+<canvas id="view" width="480" height="360"></canvas>
 
 <div id="controls">
     <button id="left">← 左を向く</button>
@@ -130,11 +42,6 @@ button { margin: 5px; }
 <p class="hint">操作：W=前進 / S=後退 / A=左回転 / D=右回転</p>
 
 <script>
-// 画像ファイル
-const IMG_WALL     = "wall.png";
-const IMG_FLOOR    = "floor.png";
-const IMG_CORRIDOR = "corridor.png";
-
 // マップ（0=通路, 1=壁）
 const map = [
     [1,1,1,1,1,1,1,1,1,1],
@@ -158,143 +65,30 @@ const dx = [0, 1, 0, -1];
 const dy = [-1, 0, 1, 0];
 
 const view = document.getElementById("view");
+const vctx = view.getContext("2d");
+
 const minimap = document.getElementById("minimap");
-const ctx = minimap.getContext("2d");
+const mctx = minimap.getContext("2d");
 
-// 3D描画
+// 線画3D描画
 function renderView() {
-    view.innerHTML = "";
+    vctx.clearRect(0, 0, 480, 360);
+    vctx.strokeStyle = "#fff";
+    vctx.lineWidth = 2;
 
+    // depthごとに線画を描く
     for (let d = 1; d <= 3; d++) {
         const fx = px + dx[dir] * d;
         const fy = py + dy[dir] * d;
 
-        // 正面
-        const frontSeg = document.createElement("div");
-        frontSeg.classList.add("seg", "front", "depth" + d);
-
-        if (map[fy][fx] === 1) {
-            frontSeg.style.backgroundImage = `url(${IMG_WALL})`;
-            view.appendChild(frontSeg);
-            // 壁に当たったら奥は見えないので break
-            break;
-        } else {
-            frontSeg.style.backgroundImage = `url(${IMG_CORRIDOR})`;
-            view.appendChild(frontSeg);
-        }
-
-        // 側面（右・左）の判定
+        const leftDir = (dir + 3) % 4;
         const rightDir = (dir + 1) % 4;
-        const leftDir  = (dir + 3) % 4;
 
-        // 「dマス先の位置」の左右
-        const rx = fx + dx[rightDir];
-        const ry = fy + dy[rightDir];
         const lx = fx + dx[leftDir];
         const ly = fy + dy[leftDir];
+        const rx = fx + dx[rightDir];
+        const ry = fy + dy[rightDir];
 
-        // 右側が通路なら右側通路を描画
-        if (map[ry] && map[ry][rx] === 0) {
-            const sideR = document.createElement("div");
-            sideR.classList.add("seg", "sideR", "depth" + d);
-            sideR.style.backgroundImage = `url(${IMG_CORRIDOR})`;
-            view.appendChild(sideR);
-        }
-
-        // 左側が通路なら左側通路を描画
-        if (map[ly] && map[ly][lx] === 0) {
-            const sideL = document.createElement("div");
-            sideL.classList.add("seg", "sideL", "depth" + d);
-            sideL.style.backgroundImage = `url(${IMG_CORRIDOR})`;
-            view.appendChild(sideL);
-        }
-    }
-}
-
-// ミニマップ（三角形プレイヤー）
-function renderMinimap() {
-    ctx.clearRect(0, 0, 200, 200);
-
-    // マップ描画
-    for (let y = 0; y < 10; y++) {
-        for (let x = 0; x < 10; x++) {
-            ctx.fillStyle = map[y][x] === 1 ? "#444" : "#222";
-            ctx.fillRect(x * 20, y * 20, 20, 20);
-        }
-    }
-
-    // プレイヤー（三角形）
-    const cx = px * 20 + 10;
-    const cy = py * 20 + 10;
-    const size = 10;
-
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "white";
-    ctx.fillStyle = "red";
-
-    ctx.beginPath();
-
-    if (dir === 0) {
-        ctx.moveTo(cx, cy - size);
-        ctx.lineTo(cx - size, cy + size);
-        ctx.lineTo(cx + size, cy + size);
-    } else if (dir === 1) {
-        ctx.moveTo(cx + size, cy);
-        ctx.lineTo(cx - size, cy - size);
-        ctx.lineTo(cx - size, cy + size);
-    } else if (dir === 2) {
-        ctx.moveTo(cx, cy + size);
-        ctx.lineTo(cx - size, cy - size);
-        ctx.lineTo(cx + size, cy - size);
-    } else if (dir === 3) {
-        ctx.moveTo(cx - size, cy);
-        ctx.lineTo(cx + size, cy - size);
-        ctx.lineTo(cx + size, cy + size);
-    }
-
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-}
-
-// 移動
-function moveForward() {
-    const nx = px + dx[dir];
-    const ny = py + dy[dir];
-    if (map[ny][nx] === 0) { px = nx; py = ny; }
-    update();
-}
-function moveBackward() {
-    const nx = px - dx[dir];
-    const ny = py - dy[dir];
-    if (map[ny][nx] === 0) { px = nx; py = ny; }
-    update();
-}
-function turnLeft()  { dir = (dir + 3) % 4; update(); }
-function turnRight() { dir = (dir + 1) % 4; update(); }
-
-// 更新
-function update() {
-    renderView();
-    renderMinimap();
-}
-
-// ボタン
-document.getElementById("forward").onclick = moveForward;
-document.getElementById("backward").onclick = moveBackward;
-document.getElementById("left").onclick = turnLeft;
-document.getElementById("right").onclick = turnRight;
-
-// キー操作
-document.onkeydown = e => {
-    if (e.key === "w") moveForward();
-    if (e.key === "s") moveBackward();
-    if (e.key === "a") turnLeft();
-    if (e.key === "d") turnRight();
-};
-
-update();
-</script>
-
-</body>
-</html>
+        // depthごとの線の位置
+        const W = 480, H = 360;
+        const scale = [0, 1.0
