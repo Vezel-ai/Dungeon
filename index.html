@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>線画3Dダンジョン（Wizardry6風・連続壁線版）</title>
+<title>線画3Dダンジョン（Wizardry式・完全版）</title>
 <style>
 body {
     background: #000;
@@ -24,7 +24,7 @@ button { margin: 5px; }
 </style>
 </head>
 <body>
-<h1>線画3Dダンジョン（Wizardry6風・連続壁線）</h1>
+<h1>線画3Dダンジョン（Wizardry式・完全版）</h1>
 
 <canvas id="view" width="800" height="600"></canvas>
 
@@ -66,7 +66,7 @@ const vctx = view.getContext("2d");
 const minimap = document.getElementById("minimap");
 const mctx = minimap.getContext("2d");
 
-// depth0〜3 の枠（A方式：上下左右40px内側）
+// depth0〜3 の枠
 const BOX = [
     { left:  40, right: 760, top:  40, bottom: 560 }, // depth0
     { left:  80, right: 720, top:  80, bottom: 520 }, // depth1
@@ -81,41 +81,6 @@ function isWall(x, y) {
     return map[y][x] === 1 ? 1 : 0;
 }
 
-// depthと左右に対応する「その区間が壁かどうか」判定
-// side: -1=左, +1=右, seg: 0→1,1→2,2→3 の区間インデックス
-function segmentWall(side, seg) {
-    const leftDir  = (dir + 3) % 4;
-    const rightDir = (dir + 1) % 4;
-    const sdir = (side === -1) ? leftDir : rightDir;
-
-    // seg 0: depth0→1（自分の左右）
-    if (seg === 0) {
-        const cx = px + dx[sdir];
-        const cy = py + dy[sdir];
-        return isWall(cx, cy);
-    }
-
-    // seg 1: depth1→2（1歩先の左右）
-    if (seg === 1) {
-        const fx = px + dx[dir];      // 1歩先
-        const fy = py + dy[dir];
-        const sx = fx + dx[sdir];
-        const sy = fy + dy[sdir];
-        return isWall(sx, sy);
-    }
-
-    // seg 2: depth2→3（2歩先の左右）
-    if (seg === 2) {
-        const fx2 = px + dx[dir] * 2; // 2歩先
-        const fy2 = py + dy[dir] * 2;
-        const sx2 = fx2 + dx[sdir];
-        const sy2 = fy2 + dy[sdir];
-        return isWall(sx2, sy2);
-    }
-
-    return 0;
-}
-
 // 正面の壁 depth を返す（1〜3、なければ0）
 function frontWallDepth() {
     for (let d = 1; d <= 3; d++) {
@@ -126,52 +91,61 @@ function frontWallDepth() {
     return 0;
 }
 
-// 側面の連続壁線を描く（正面が通路のときだけ呼ぶ）
-function drawSideLines() {
-    vctx.lineWidth = 3;
-    const brightness = [1.0, 0.8, 0.6]; // seg0,1,2 用
+// 左右の壁がどこまで続くか（depth0〜3）
+function sideWallDepth(side) {
+    const sdir = (side === -1) ? (dir + 3) % 4 : (dir + 1) % 4;
 
-    // 左側
-    for (let seg = 0; seg < 3; seg++) {
-        if (segmentWall(-1, seg)) {
-            const b = brightness[seg];
-            vctx.strokeStyle = `rgba(255,255,255,${b})`;
-            const a = BOX[seg];
-            const b2 = BOX[seg + 1];
-
-            // 左上線
-            vctx.beginPath();
-            vctx.moveTo(a.left, a.top);
-            vctx.lineTo(b2.left, b2.top);
-            vctx.stroke();
-
-            // 左下線
-            vctx.beginPath();
-            vctx.moveTo(a.left, a.bottom);
-            vctx.lineTo(b2.left, b2.bottom);
-            vctx.stroke();
-        }
+    let maxDepth = 0;
+    for (let d = 0; d <= 3; d++) {
+        const fx = px + dx[dir] * d + dx[sdir];
+        const fy = py + dy[dir] * d + dy[sdir];
+        if (isWall(fx, fy)) maxDepth = d;
     }
+    return maxDepth;
+}
 
-    // 右側
-    for (let seg = 0; seg < 3; seg++) {
-        if (segmentWall(1, seg)) {
-            const b = brightness[seg];
-            vctx.strokeStyle = `rgba(255,255,255,${b})`;
+// 正面の壁を描く
+function drawFrontWall(depth) {
+    const box = BOX[depth];
+    vctx.strokeStyle = "white";
+    vctx.lineWidth = 3;
+    vctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
+}
+
+// 側面の連続壁線
+function drawSideLines() {
+    const brightness = [1.0, 0.8, 0.6];
+
+    for (let side of [-1, 1]) {
+        const maxD = sideWallDepth(side);
+
+        for (let seg = 0; seg < maxD; seg++) {
             const a = BOX[seg];
-            const b2 = BOX[seg + 1];
+            const b = BOX[seg + 1];
+            vctx.strokeStyle = `rgba(255,255,255,${brightness[seg]})`;
+            vctx.lineWidth = 3;
 
-            // 右上線
-            vctx.beginPath();
-            vctx.moveTo(a.right, a.top);
-            vctx.lineTo(b2.right, b2.top);
-            vctx.stroke();
+            if (side === -1) {
+                vctx.beginPath();
+                vctx.moveTo(a.left, a.top);
+                vctx.lineTo(b.left, b.top);
+                vctx.stroke();
 
-            // 右下線
-            vctx.beginPath();
-            vctx.moveTo(a.right, a.bottom);
-            vctx.lineTo(b2.right, b2.bottom);
-            vctx.stroke();
+                vctx.beginPath();
+                vctx.moveTo(a.left, a.bottom);
+                vctx.lineTo(b.left, b.bottom);
+                vctx.stroke();
+            } else {
+                vctx.beginPath();
+                vctx.moveTo(a.right, a.top);
+                vctx.lineTo(b.right, b.top);
+                vctx.stroke();
+
+                vctx.beginPath();
+                vctx.moveTo(a.right, a.bottom);
+                vctx.lineTo(b.right, b.bottom);
+                vctx.stroke();
+            }
         }
     }
 }
@@ -182,21 +156,13 @@ function renderView() {
 
     const fw = frontWallDepth();
 
-    // 🔴 正面が壁のとき：その depth の白い四角だけ描く（斜め線なし）
+    // 正面が壁 → その depth の四角だけ描く
     if (fw > 0) {
-        const box = BOX[fw];
-        vctx.lineWidth = 3;
-        vctx.strokeStyle = "white";
-        vctx.strokeRect(
-            box.left,
-            box.top,
-            box.right - box.left,
-            box.bottom - box.top
-        );
-        return; // ここで終了：側面線も奥の枠も描かない
+        drawFrontWall(fw);
+        return;
     }
 
-    // 🟢 正面が壁でないとき：四角は描かず、側面の連続壁線だけ描く
+    // 正面が通路 → 側面線だけ描く
     drawSideLines();
 }
 
@@ -214,9 +180,9 @@ function renderMinimap() {
     const cy = py * 20 + 10;
     const size = 10;
 
-    mctx.lineWidth = 3;
-    mctx.strokeStyle = "white";
     mctx.fillStyle = "red";
+    mctx.strokeStyle = "white";
+    mctx.lineWidth = 3;
 
     mctx.beginPath();
     if (dir === 0) {
@@ -231,7 +197,7 @@ function renderMinimap() {
         mctx.moveTo(cx, cy + size);
         mctx.lineTo(cx - size, cy - size);
         mctx.lineTo(cx + size, cy - size);
-    } else if (dir === 3) {
+    } else {
         mctx.moveTo(cx - size, cy);
         mctx.lineTo(cx + size, cy - size);
         mctx.lineTo(cx + size, cy + size);
