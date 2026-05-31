@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>疑似3Dダンジョン（10x10・視界3マス）</title>
+    <style>
+        body {
+            background: #000;
+            color: #fff;
+            text-align: center;
+            font-family: sans-serif;
+        }
+        #view {
+            position: relative;
+            width: 480px;
+            height: 360px;
+            margin: 20px auto;
+            border: 2px solid #555;
+            background-color: #111;
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+        }
+        .seg {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            background-size: cover;
+            background-position: center;
+        }
+        /* 奥に行くほど小さく・上に */
+        .depth1 { /* 1マス先（手前） */
+            width: 420px;
+            height: 280px;
+            top: 60px;
+        }
+        .depth2 { /* 2マス先 */
+            width: 320px;
+            height: 220px;
+            top: 80px;
+        }
+        .depth3 { /* 3マス先（奥） */
+            width: 220px;
+            height: 180px;
+            top: 100px;
+        }
+
+        #controls {
+            margin: 10px;
+        }
+        button {
+            margin: 5px;
+        }
+        #minimap {
+            border: 1px solid #555;
+            background: #111;
+        }
+        p.hint {
+            font-size: 12px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <h1>疑似3Dダンジョン（10×10・視界3マス）</h1>
+    <div id="view"></div>
+<img src="wall.png" width="200">
+<img src="floor.png" width="200">
+<img src="corridor.png" width="200">
+
+    <div id="controls">
+        <button id="left">← 左を向く</button>
+        <button id="forward">↑ 前進</button>
+        <button id="right">右を向く →</button>
+        <button id="backward">↓ 後退</button>
+    </div>
+
+    <canvas id="minimap" width="200" height="200"></canvas>
+    <p class="hint">操作：W=前進 / S=後退 / A=左回転 / D=右回転</p>
+
+    <script>
+        // ▼ ここで画像ファイル名を設定（同じフォルダに置く）
+        const IMG_WALL     = "wall.png";
+        const IMG_FLOOR    = "floor.png";
+        const IMG_CORRIDOR = "corridor.png";
+
+        // 10×10マップ（0=通路, 1=壁）
+        const map = [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,1,0,0,0,1],
+            [1,0,1,1,0,1,0,1,0,1],
+            [1,0,0,1,0,0,0,1,0,1],
+            [1,1,0,1,1,1,0,1,0,1],
+            [1,0,0,0,0,1,0,0,0,1],
+            [1,0,1,1,0,1,1,1,0,1],
+            [1,0,0,1,0,0,0,1,0,1],
