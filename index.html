@@ -126,12 +126,9 @@ function frontWallDepth() {
     return 0;
 }
 
-// メイン描画
-function renderView() {
-    vctx.clearRect(0, 0, 800, 600);
+// 側面の連続壁線を描く（正面が通路のときだけ呼ぶ）
+function drawSideLines() {
     vctx.lineWidth = 3;
-
-    // 連続壁線（左右） depth0→1→2→3
     const brightness = [1.0, 0.8, 0.6]; // seg0,1,2 用
 
     // 左側
@@ -177,29 +174,30 @@ function renderView() {
             vctx.stroke();
         }
     }
+}
 
-    // 正面の壁枠
+// メイン描画
+function renderView() {
+    vctx.clearRect(0, 0, 800, 600);
+
     const fw = frontWallDepth();
+
+    // 🔴 正面が壁のとき：その depth の白い四角だけ描く（斜め線なし）
     if (fw > 0) {
-        for (let d = 1; d <= fw; d++) {
-            const box = BOX[d];
-            const alpha = [0, 1.0, 0.7, 0.45][d];
-            vctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-            vctx.strokeRect(box.left, box.top,
-                            box.right - box.left,
-                            box.bottom - box.top);
-        }
-    } else {
-        // 正面が3マスとも通路なら、奥の枠だけ描く
-        for (let d = 1; d <= 3; d++) {
-            const box = BOX[d];
-            const alpha = [0, 1.0, 0.7, 0.45][d];
-            vctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-            vctx.strokeRect(box.left, box.top,
-                            box.right - box.left,
-                            box.bottom - box.top);
-        }
+        const box = BOX[fw];
+        vctx.lineWidth = 3;
+        vctx.strokeStyle = "white";
+        vctx.strokeRect(
+            box.left,
+            box.top,
+            box.right - box.left,
+            box.bottom - box.top
+        );
+        return; // ここで終了：側面線も奥の枠も描かない
     }
+
+    // 🟢 正面が壁でないとき：四角は描かず、側面の連続壁線だけ描く
+    drawSideLines();
 }
 
 // ミニマップ
