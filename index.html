@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>線画3Dダンジョン（20マス視界対応）</title>
+<title>線画3Dダンジョン（奥から手前レイヤー描画）</title>
 <style>
 body { background:#000; color:#fff; text-align:center; }
 #view { background:#000; margin:20px auto; border:2px solid #555; }
@@ -12,7 +12,7 @@ button { margin:5px; }
 </head>
 <body>
 
-<h1>線画3Dダンジョン（20マス視界・Wizardry式）</h1>
+<h1>線画3Dダンジョン（奥から手前レイヤー描画）</h1>
 
 <canvas id="view" width="800" height="600"></canvas>
 
@@ -58,21 +58,20 @@ function isWall(x,y){
 
 //==================================================
 // 視界方向に合わせて座標を回転
-// （ここがバグってたので修正）
 //==================================================
 function rotate(x,y,dir){
-    if(dir===0) return { x:x,  y:y  };   // 上向き
-    if(dir===1) return { x:y,  y:-x };   // 右向き
-    if(dir===2) return { x:-x, y:-y };   // 下向き
-    if(dir===3) return { x:-y, y:x  };   // 左向き
+    if(dir===0) return {x:x,  y:y};
+    if(dir===1) return {x:y,  y:-x};
+    if(dir===2) return {x:-x, y:-y};
+    if(dir===3) return {x:-y, y:x};
 }
 
 //==================================================
-// 20マス視界を抽出（暫定：depth0〜3のみ）
+// 20マス視界（depth0〜7）
 //==================================================
 function getView20(){
     const out=[];
-    for(let d=0; d<=3; d++){
+    for(let d=0; d<=7; d++){
         const row=[];
         const range = (d<=1 ? [-1,0,1] : [-2,-1,0,1,2]);
         for(let sx of range){
@@ -87,86 +86,64 @@ function getView20(){
 }
 
 //==================================================
-// 3D 描画
+// 3D描画（奥から手前へ）
 //==================================================
 const view = document.getElementById("view");
 const vctx = view.getContext("2d");
 
-// depthごとの四角
+// depthごとの矩形（遠近比率）
 const BOX = [
-    {l:  40, r:760, t: 40, b:560},
-    {l: 120, r:680, t:120, b:480},
-    {l: 240, r:560, t:200, b:400},
-    {l: 300, r:500, t:240, b:360}
+    {l:  80, r:720, t: 80, b:520},  // depth1
+    {l: 160, r:640, t:160, b:440},  // depth2
+    {l: 240, r:560, t:240, b:360},  // depth3
+    {l: 300, r:500, t:280, b:320},  // depth4
+    {l: 340, r:460, t:300, b:300},  // depth5
+    {l: 360, r:440, t:310, b:290},  // depth6
+    {l: 370, r:430, t:315, b:285},  // depth7
 ];
 
-function drawFrontWall(d){
-    const b=BOX[d];
-    vctx.strokeStyle="white";
-    vctx.lineWidth=3;
-    vctx.strokeRect(b.l,b.t,b.r-b.l,b.b-b.t);
-}
+function drawWall(depth, left, front, right) {
+    const b = BOX[depth-1];
+    const alpha = 1.0 - (depth * 0.08); // 奥ほど薄く
+    vctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    vctx.lineWidth = depth <= 3 ? 3 : 1.5;
 
-function drawSideLine(side, d){
-    const a=BOX[d];
-    const b=BOX[d+1];
-    vctx.strokeStyle="white";
-    vctx.lineWidth=3;
+    // 正面壁
+    if (front) vctx.strokeRect(b.l, b.t, b.r - b.l, b.b - b.t);
 
-    if(side<0){
+    // 左壁
+    if (left) {
         vctx.beginPath();
-        vctx.moveTo(a.l,a.t);
-        vctx.lineTo(b.l,b.t);
+        vctx.moveTo(b.l, b.t);
+        vctx.lineTo(b.l, b.b);
         vctx.stroke();
+    }
 
+    // 右壁
+    if (right) {
         vctx.beginPath();
-        vctx.moveTo(a.l,a.b);
-        vctx.lineTo(b.l,b.b);
-        vctx.stroke();
-    }else{
-        vctx.beginPath();
-        vctx.moveTo(a.r,a.t);
-        vctx.lineTo(b.r,b.t);
-        vctx.stroke();
-
-        vctx.beginPath();
-        vctx.moveTo(a.r,a.b);
-        vctx.lineTo(b.r,b.b);
+        vctx.moveTo(b.r, b.t);
+        vctx.lineTo(b.r, b.b);
         vctx.stroke();
     }
 }
 
 function render3D(){
     vctx.clearRect(0,0,800,600);
-
     const v = getView20();
 
-    // 正面の壁 depth
-    let fw=0;
-    for(let d=1; d<=3; d++){
-        const center = (d<=1 ? 1 : 2);
-        if(v[d][center]===1){ fw=d; break; }
-    }
-
-    // 正面が壁 → 四角だけ
-    if(fw>0){
-        drawFrontWall(fw);
-        return;
-    }
-
-    // 正面が通路 → 側面線
-    for(let d=0; d<3; d++){
+    // 🔁 奥から手前へ描画
+    for(let d=7; d>=1; d--){
         const row=v[d];
-        const leftIdx  = (d<=1?0:0); // 左端
-        const rightIdx = (d<=1?2:4); // 右端
-
-        if(row[leftIdx]===1)  drawSideLine(-1,d);
-        if(row[rightIdx]===1) drawSideLine( 1,d);
+        const left  = row[0]===1;
+        const front = row[Math.floor(row.length/2)]===1;
+        const right = row[row.length-1]===1;
+        drawWall(d,left,front,right);
     }
 }
 
 //==================================================
-// ミニマップ（▲で向き表示）
+// ミニマップ
 //==================================================
 const minimap=document.getElementById("minimap");
 const mctx=minimap.getContext("2d");
@@ -180,11 +157,9 @@ function renderMinimap(){
         }
     }
     const cx=px*20+10, cy=py*20+10;
-
-    // 向き付きの三角形（▲）
     mctx.save();
     mctx.translate(cx,cy);
-    mctx.rotate(dir * Math.PI/2);
+    mctx.rotate(dir*Math.PI/2);
     mctx.fillStyle="red";
     mctx.beginPath();
     mctx.moveTo(0,-8);
@@ -213,13 +188,11 @@ function update(){
     renderMinimap();
 }
 
-// ボタン操作
 document.getElementById("forward").onclick=moveForward;
 document.getElementById("left").onclick=turnLeft;
 document.getElementById("right").onclick=turnRight;
 document.getElementById("turnback").onclick=turnBack;
 
-// キーボード操作（WASD）
 document.addEventListener("keydown",(e)=>{
     if(e.key==="w"||e.key==="W") moveForward();
     if(e.key==="a"||e.key==="A") turnLeft();
