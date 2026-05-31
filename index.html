@@ -58,26 +58,23 @@ function isWall(x,y){
 
 //==================================================
 // 視界方向に合わせて座標を回転
+// （ここがバグってたので修正）
 //==================================================
 function rotate(x,y,dir){
-    if(dir===0) return {x,y};
-    if(dir===1) return {x:y, y:-x};
-    if(dir===2) return {x:-x, y:-y};
-    if(dir===3) return {x:-y, y:x};
+    if(dir===0) return { x:x,  y:y  };   // 上向き
+    if(dir===1) return { x:y,  y:-x };   // 右向き
+    if(dir===2) return { x:-x, y:-y };   // 下向き
+    if(dir===3) return { x:-y, y:x  };   // 左向き
 }
 
 //==================================================
-// 20マス視界を抽出
-// depth0〜1：左右1マス → 3列
-// depth2〜3：左右2マス → 5列
+// 20マス視界を抽出（暫定：depth0〜3のみ）
 //==================================================
 function getView20(){
     const out=[];
-
     for(let d=0; d<=3; d++){
         const row=[];
         const range = (d<=1 ? [-1,0,1] : [-2,-1,0,1,2]);
-
         for(let sx of range){
             const pos = rotate(sx, -d, dir);
             const tx = px + pos.x;
@@ -169,7 +166,7 @@ function render3D(){
 }
 
 //==================================================
-// ミニマップ
+// ミニマップ（▲で向き表示）
 //==================================================
 const minimap=document.getElementById("minimap");
 const mctx=minimap.getContext("2d");
@@ -183,10 +180,19 @@ function renderMinimap(){
         }
     }
     const cx=px*20+10, cy=py*20+10;
+
+    // 向き付きの三角形（▲）
+    mctx.save();
+    mctx.translate(cx,cy);
+    mctx.rotate(dir * Math.PI/2);
     mctx.fillStyle="red";
     mctx.beginPath();
-    mctx.arc(cx,cy,6,0,Math.PI*2);
+    mctx.moveTo(0,-8);
+    mctx.lineTo(6,6);
+    mctx.lineTo(-6,6);
+    mctx.closePath();
     mctx.fill();
+    mctx.restore();
 }
 
 //==================================================
@@ -207,10 +213,19 @@ function update(){
     renderMinimap();
 }
 
+// ボタン操作
 document.getElementById("forward").onclick=moveForward;
 document.getElementById("left").onclick=turnLeft;
 document.getElementById("right").onclick=turnRight;
 document.getElementById("turnback").onclick=turnBack;
+
+// キーボード操作（WASD）
+document.addEventListener("keydown",(e)=>{
+    if(e.key==="w"||e.key==="W") moveForward();
+    if(e.key==="a"||e.key==="A") turnLeft();
+    if(e.key==="d"||e.key==="D") turnRight();
+    if(e.key==="s"||e.key==="S") turnBack();
+});
 
 update();
 </script>
