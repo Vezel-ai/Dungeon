@@ -2,33 +2,21 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>線画3Dダンジョン（Wizardry式・完全版）</title>
+<title>線画3Dダンジョン（20マス視界対応）</title>
 <style>
-body {
-    background: #000;
-    color: #fff;
-    text-align: center;
-    font-family: sans-serif;
-}
-#view {
-    background: #000;
-    margin: 20px auto;
-    border: 2px solid #555;
-}
-#controls { margin: 10px; }
-button { margin: 5px; }
-#minimap {
-    border: 1px solid #555;
-    background: #111;
-}
+body { background:#000; color:#fff; text-align:center; }
+#view { background:#000; margin:20px auto; border:2px solid #555; }
+#minimap { border:1px solid #555; background:#111; }
+button { margin:5px; }
 </style>
 </head>
 <body>
-<h1>線画3Dダンジョン（Wizardry式・完全版）</h1>
+
+<h1>線画3Dダンジョン（20マス視界・Wizardry式）</h1>
 
 <canvas id="view" width="800" height="600"></canvas>
 
-<div id="controls">
+<div>
     <button id="left">← 左を向く</button>
     <button id="forward">↑ 前進</button>
     <button id="right">右を向く →</button>
@@ -36,10 +24,11 @@ button { margin: 5px; }
 </div>
 
 <canvas id="minimap" width="200" height="200"></canvas>
-<p>操作：W=前進 / S=振り返り / A=左回転 / D=右回転</p>
 
 <script>
-// 0=通路, 1=壁
+//==================================================
+// マップ
+//==================================================
 const map = [
     [1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,0,1,0,0,0,1],
@@ -53,202 +42,175 @@ const map = [
     [1,1,1,1,1,1,1,1,1,1]
 ];
 
+//==================================================
 // プレイヤー
+//==================================================
 let px = 1, py = 1;
 let dir = 1; // 0=上,1=右,2=下,3=左
 
-const dx = [0, 1, 0, -1];
-const dy = [-1, 0, 1, 0];
+const dx = [0,1,0,-1];
+const dy = [-1,0,1,0];
 
+function isWall(x,y){
+    if(y<0||y>=10||x<0||x>=10) return 1;
+    return map[y][x]===1?1:0;
+}
+
+//==================================================
+// 視界方向に合わせて座標を回転
+//==================================================
+function rotate(x,y,dir){
+    if(dir===0) return {x,y};
+    if(dir===1) return {x:y, y:-x};
+    if(dir===2) return {x:-x, y:-y};
+    if(dir===3) return {x:-y, y:x};
+}
+
+//==================================================
+// 20マス視界を抽出
+// depth0〜1：左右1マス → 3列
+// depth2〜3：左右2マス → 5列
+//==================================================
+function getView20(){
+    const out=[];
+
+    for(let d=0; d<=3; d++){
+        const row=[];
+        const range = (d<=1 ? [-1,0,1] : [-2,-1,0,1,2]);
+
+        for(let sx of range){
+            const pos = rotate(sx, -d, dir);
+            const tx = px + pos.x;
+            const ty = py + pos.y;
+            row.push(isWall(tx,ty));
+        }
+        out.push(row);
+    }
+    return out;
+}
+
+//==================================================
+// 3D 描画
+//==================================================
 const view = document.getElementById("view");
 const vctx = view.getContext("2d");
 
-const minimap = document.getElementById("minimap");
-const mctx = minimap.getContext("2d");
-
-// depth0〜3 の枠
+// depthごとの四角
 const BOX = [
-    { left:  40, right: 760, top:  40, bottom: 560 }, // depth0
-    { left:  80, right: 720, top:  80, bottom: 520 }, // depth1
-    { left: 200, right: 600, top: 150, bottom: 450 }, // depth2
-    { left: 300, right: 500, top: 200, bottom: 400 }  // depth3
+    {l:  40, r:760, t: 40, b:560},
+    {l: 120, r:680, t:120, b:480},
+    {l: 240, r:560, t:200, b:400},
+    {l: 300, r:500, t:240, b:360}
 ];
 
-// マップ安全参照
-function isWall(x, y) {
-    if (y < 0 || y >= map.length) return 1;
-    if (x < 0 || x >= map[0].length) return 1;
-    return map[y][x] === 1 ? 1 : 0;
+function drawFrontWall(d){
+    const b=BOX[d];
+    vctx.strokeStyle="white";
+    vctx.lineWidth=3;
+    vctx.strokeRect(b.l,b.t,b.r-b.l,b.b-b.t);
 }
 
-// 正面の壁 depth を返す（1〜3、なければ0）
-function frontWallDepth() {
-    for (let d = 1; d <= 3; d++) {
-        const fx = px + dx[dir] * d;
-        const fy = py + dy[dir] * d;
-        if (isWall(fx, fy)) return d;
-    }
-    return 0;
-}
+function drawSideLine(side, d){
+    const a=BOX[d];
+    const b=BOX[d+1];
+    vctx.strokeStyle="white";
+    vctx.lineWidth=3;
 
-// 左右の壁がどこまで続くか（depth0〜3）
-function sideWallDepth(side) {
-    const sdir = (side === -1) ? (dir + 3) % 4 : (dir + 1) % 4;
+    if(side<0){
+        vctx.beginPath();
+        vctx.moveTo(a.l,a.t);
+        vctx.lineTo(b.l,b.t);
+        vctx.stroke();
 
-    let maxDepth = 0;
-    for (let d = 0; d <= 3; d++) {
-        const fx = px + dx[dir] * d + dx[sdir];
-        const fy = py + dy[dir] * d + dy[sdir];
-        if (isWall(fx, fy)) maxDepth = d;
-    }
-    return maxDepth;
-}
+        vctx.beginPath();
+        vctx.moveTo(a.l,a.b);
+        vctx.lineTo(b.l,b.b);
+        vctx.stroke();
+    }else{
+        vctx.beginPath();
+        vctx.moveTo(a.r,a.t);
+        vctx.lineTo(b.r,b.t);
+        vctx.stroke();
 
-// 正面の壁を描く
-function drawFrontWall(depth) {
-    const box = BOX[depth];
-    vctx.strokeStyle = "white";
-    vctx.lineWidth = 3;
-    vctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
-}
-
-// 側面の連続壁線
-function drawSideLines() {
-    const brightness = [1.0, 0.8, 0.6];
-
-    for (let side of [-1, 1]) {
-        const maxD = sideWallDepth(side);
-
-        for (let seg = 0; seg < maxD; seg++) {
-            const a = BOX[seg];
-            const b = BOX[seg + 1];
-            vctx.strokeStyle = `rgba(255,255,255,${brightness[seg]})`;
-            vctx.lineWidth = 3;
-
-            if (side === -1) {
-                vctx.beginPath();
-                vctx.moveTo(a.left, a.top);
-                vctx.lineTo(b.left, b.top);
-                vctx.stroke();
-
-                vctx.beginPath();
-                vctx.moveTo(a.left, a.bottom);
-                vctx.lineTo(b.left, b.bottom);
-                vctx.stroke();
-            } else {
-                vctx.beginPath();
-                vctx.moveTo(a.right, a.top);
-                vctx.lineTo(b.right, b.top);
-                vctx.stroke();
-
-                vctx.beginPath();
-                vctx.moveTo(a.right, a.bottom);
-                vctx.lineTo(b.right, b.bottom);
-                vctx.stroke();
-            }
-        }
+        vctx.beginPath();
+        vctx.moveTo(a.r,a.b);
+        vctx.lineTo(b.r,b.b);
+        vctx.stroke();
     }
 }
 
-// メイン描画
-function renderView() {
-    vctx.clearRect(0, 0, 800, 600);
+function render3D(){
+    vctx.clearRect(0,0,800,600);
 
-    const fw = frontWallDepth();
+    const v = getView20();
 
-    // 正面が壁 → その depth の四角だけ描く
-    if (fw > 0) {
+    // 正面の壁 depth
+    let fw=0;
+    for(let d=1; d<=3; d++){
+        const center = (d<=1 ? 1 : 2);
+        if(v[d][center]===1){ fw=d; break; }
+    }
+
+    // 正面が壁 → 四角だけ
+    if(fw>0){
         drawFrontWall(fw);
         return;
     }
 
-    // 正面が通路 → 側面線だけ描く
-    drawSideLines();
+    // 正面が通路 → 側面線
+    for(let d=0; d<3; d++){
+        const row=v[d];
+        const leftIdx  = (d<=1?0:0); // 左端
+        const rightIdx = (d<=1?2:4); // 右端
+
+        if(row[leftIdx]===1)  drawSideLine(-1,d);
+        if(row[rightIdx]===1) drawSideLine( 1,d);
+    }
 }
 
+//==================================================
 // ミニマップ
-function renderMinimap() {
-    mctx.clearRect(0, 0, 200, 200);
-    for (let y = 0; y < 10; y++) {
-        for (let x = 0; x < 10; x++) {
-            mctx.fillStyle = map[y][x] === 1 ? "#444" : "#222";
-            mctx.fillRect(x * 20, y * 20, 20, 20);
+//==================================================
+const minimap=document.getElementById("minimap");
+const mctx=minimap.getContext("2d");
+
+function renderMinimap(){
+    mctx.clearRect(0,0,200,200);
+    for(let y=0;y<10;y++){
+        for(let x=0;x<10;x++){
+            mctx.fillStyle = map[y][x]===1?"#444":"#222";
+            mctx.fillRect(x*20,y*20,20,20);
         }
     }
-
-    const cx = px * 20 + 10;
-    const cy = py * 20 + 10;
-    const size = 10;
-
-    mctx.fillStyle = "red";
-    mctx.strokeStyle = "white";
-    mctx.lineWidth = 3;
-
+    const cx=px*20+10, cy=py*20+10;
+    mctx.fillStyle="red";
     mctx.beginPath();
-    if (dir === 0) {
-        mctx.moveTo(cx, cy - size);
-        mctx.lineTo(cx - size, cy + size);
-        mctx.lineTo(cx + size, cy + size);
-    } else if (dir === 1) {
-        mctx.moveTo(cx + size, cy);
-        mctx.lineTo(cx - size, cy - size);
-        mctx.lineTo(cx - size, cy + size);
-    } else if (dir === 2) {
-        mctx.moveTo(cx, cy + size);
-        mctx.lineTo(cx - size, cy - size);
-        mctx.lineTo(cx + size, cy - size);
-    } else {
-        mctx.moveTo(cx - size, cy);
-        mctx.lineTo(cx + size, cy - size);
-        mctx.lineTo(cx + size, cy + size);
-    }
-    mctx.closePath();
+    mctx.arc(cx,cy,6,0,Math.PI*2);
     mctx.fill();
-    mctx.stroke();
 }
 
-// 移動・回転
-function moveForward() {
-    const nx = px + dx[dir];
-    const ny = py + dy[dir];
-    if (!isWall(nx, ny)) {
-        px = nx;
-        py = ny;
-    }
+//==================================================
+// 操作
+//==================================================
+function moveForward(){
+    const nx=px+dx[dir];
+    const ny=py+dy[dir];
+    if(!isWall(nx,ny)){ px=nx; py=ny; }
     update();
 }
+function turnLeft(){ dir=(dir+3)%4; update(); }
+function turnRight(){ dir=(dir+1)%4; update(); }
+function turnBack(){ dir=(dir+2)%4; update(); }
 
-function turnBack() {
-    dir = (dir + 2) % 4;
-    update();
-}
-function turnLeft() {
-    dir = (dir + 3) % 4;
-    update();
-}
-function turnRight() {
-    dir = (dir + 1) % 4;
-    update();
-}
-
-function update() {
-    renderView();
+function update(){
+    render3D();
     renderMinimap();
 }
 
-// ボタン
-document.getElementById("forward").onclick = moveForward;
-document.getElementById("turnback").onclick = turnBack;
-document.getElementById("left").onclick = turnLeft;
-document.getElementById("right").onclick = turnRight;
-
-// キー
-document.addEventListener("keydown", e => {
-    if (e.key === "w" || e.key === "W") moveForward();
-    if (e.key === "s" || e.key === "S") turnBack();
-    if (e.key === "a" || e.key === "A") turnLeft();
-    if (e.key === "d" || e.key === "D") turnRight();
-});
+document.getElementById("forward").onclick=moveForward;
+document.getElementById("left").onclick=turnLeft;
+document.getElementById("right").onclick=turnRight;
+document.getElementById("turnback").onclick=turnBack;
 
 update();
 </script>
